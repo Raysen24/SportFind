@@ -1,12 +1,16 @@
-import * as React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons'; // or 'react-native-vector-icons/Ionicons'
+import { Ionicons } from '@expo/vector-icons';
+import { View, Text, ActivityIndicator } from 'react-native';
 
-// Import Screens
+// Firebase
+import { auth, db, rdb } from './firebaseConfig'; // Make sure these are exported properly
+
+// Screens
 import LoginScreen from './screens/LoginScreen';
-import SignUpScreen from './screens/SignUpScreen'; // Import SignUpScreen
+import SignUpScreen from './screens/SignUpScreen';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -16,11 +20,12 @@ import EventDetailsScreen from './screens/EventDetailsScreen';
 import VenueListScreen from './screens/VenueListScreen';
 import ReviewsScreen from './screens/ReviewsScreen';
 import CourtBookingScreen from './screens/CourtBookingScreen';
+import PaymentScreen from './screens/PaymentScreen';
+import MyBookingsScreen from './screens/MyBookingsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Bottom Tab Navigator for main app sections
 function MainTabs() {
   return (
     <Tab.Navigator
@@ -28,7 +33,6 @@ function MainTabs() {
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Search') {
@@ -38,8 +42,6 @@ function MainTabs() {
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
-
-          // Return the Ionicons component
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#1A253A',
@@ -54,25 +56,51 @@ function MainTabs() {
   );
 }
 
-// Main App Stack Navigator
 export default function App() {
-  // Start with Login screen to test auth flow
-  const initialRouteName = 'Login'; 
+  const [loading, setLoading] = useState(true);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+
+  // Wait until all Firebase services are initialized
+  useEffect(() => {
+    const checkFirebase = () => {
+      if (!auth || !db || !rdb) {
+        console.warn("Firebase services not ready:", { auth, db, rdb });
+        setTimeout(checkFirebase, 500); // Retry after delay
+        return;
+      }
+
+      setIsFirebaseReady(true);
+      setLoading(false);
+    };
+
+    checkFirebase();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F0F0' }}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={{ marginTop: 10 }}>Loading app...</Text>
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName={initialRouteName}>
+      <Stack.Navigator initialRouteName="Login">
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-        {/* Add other screens accessible from tabs or other screens */}
+
+        {/* Add other screens */}
         <Stack.Screen name="CourtDetails" component={CourtDetailsScreen} />
         <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
         <Stack.Screen name="VenueList" component={VenueListScreen} />
         <Stack.Screen name="Reviews" component={ReviewsScreen} />
         <Stack.Screen name="CourtBooking" component={CourtBookingScreen} />
+        <Stack.Screen name="Payment" component={PaymentScreen} />
+        <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
-

@@ -8,14 +8,16 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar } from 'react-native-calendars'; // Import calendar
+import { Calendar } from 'react-native-calendars';
 
 // Firebase imports
-import { db, rdb } from '../firebaseConfig'; // Firestore + RTDB
+import { db, rdb } from '../firebaseConfig';
 import {
   collection,
   getDocs,
   addDoc,
+  doc,
+  getDoc,
 } from 'firebase/firestore';
 import {
   ref,
@@ -44,7 +46,7 @@ const TimeSlot = ({ time, available, selected, onPress }) => (
 
 export default function CourtBookingScreen({ navigation, route }) {
   const { venueId } = route.params || {};
-  const [selectedDate, setSelectedDate] = useState('2025-04-08'); // Use YYYY-MM-DD format
+  const [selectedDate, setSelectedDate] = useState('2025-04-08'); // Default date
   const [selectedCourt, setSelectedCourt] = useState(null); // Will be set after fetching
   const [timeSlots, setTimeSlots] = useState([]); // All time slots
   const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
@@ -78,12 +80,13 @@ export default function CourtBookingScreen({ navigation, route }) {
   // Fetch all time slots for the selected court and date
   useEffect(() => {
     if (!venueId || !rdb || !selectedCourt) {
-      console.warn("Missing required data");
+      // Don't warn here; just wait until all data is ready
       return;
     }
-
+  
     const courtPath = `venues/${venueId}/courts/${selectedCourt}`;
     const realtimeRef = ref(rdb, `${courtPath}/${selectedDate}`);
+  
     const unsubscribe = onValue(realtimeRef, (snapshot) => {
       let slots = [
         { time: '06:00-07:00', available: true },
@@ -103,64 +106,64 @@ export default function CourtBookingScreen({ navigation, route }) {
         { time: '20:00-21:00', available: true },
         { time: '21:00-22:00', available: true },
       ];
-
+  
       if (snapshot.exists()) {
         const data = snapshot.val();
         Object.entries(data).forEach(([key, value]) => {
           const slotTime = key.replace(/_/, '-');
           const index = slots.findIndex(slot => slot.time === slotTime);
           if (index !== -1) {
-            slots[index].available = !value.booked; // Mark booked slots as unavailable
+            slots[index].available = !value.booked;
           }
         });
       }
-
+  
       setTimeSlots(slots);
     });
-
+  
     return () => unsubscribe();
   }, [venueId, selectedDate, selectedCourt]);
 
   // Handle Booking
   const handleBooking = async () => {
-    if (!venueId || selectedTimeSlots.length === 0) {
-      alert('Please select at least one time slot.');
+  if (!venueId || selectedTimeSlots.length === 0) {
+    alert('Please select at least one time slot.');
+    return;
+  }
+
+  try {
+    // Fetch venue name dynamically
+    const venueDocRef = doc(db, 'venues', venueId);
+    const venueDocSnap = await getDoc(venueDocRef);
+    const venueName = venueDocSnap.exists() ? venueDocSnap.data().name : 'Badminton Arena';
+
+    // Get selected court name
+    const selectedCourtObj = courts.find(court => court.id === selectedCourt);
+    const courtName = selectedCourtObj?.name || 'Unknown Court';
+
+    const bookingDetails = {
+      venueName,
+      venueId,
+      courtId: selectedCourt,
+      courtName,
+      date: selectedDate,
+      time: selectedTimeSlots.join(', ')
+    };
+
+    // ✅ Only navigate if bookingDetails has required fields
+    if (!bookingDetails.venueId || !bookingDetails.courtId) {
+      console.error("Missing required booking details", bookingDetails);
+      alert("Failed to prepare booking. Please try again.");
       return;
     }
 
-    const userId = "user123"; // Replace with actual user ID later
+    navigation.navigate('Payment', { bookingDetails });
 
-    try {
-      // Save each slot individually in Firestore
-      const firestoreRef = collection(db, `bookings`);
-      for (const slot of selectedTimeSlots) {
-        await addDoc(firestoreRef, {
-          venueId,
-          courtId: selectedCourt,
-          date: selectedDate,
-          slot,
-          bookedAt: new Date(),
-          userId,
-        });
-      }
-
-      // Update Realtime DB with only selected slots
-      const updates = {};
-      selectedTimeSlots.forEach(slot => {
-        updates[slot.replace('-', '_')] = { booked: true, userId };
-      });
-
-      const courtPath = `venues/${venueId}/courts/${selectedCourt}`;
-      const realtimeRef = ref(rdb, `${courtPath}/${selectedDate}`);
-      await update(realtimeRef, updates);
-
-      setSelectedTimeSlots([]);
-      alert('Booking confirmed!');
-    } catch (error) {
-      console.error("Error booking slots:", error);
-      alert("Failed to book slots.");
-    }
-  };
+  } catch (error) {
+    console.error("Error preparing booking:", error);
+    alert("Failed to load booking details. Please try again.");
+  }
+};
 
   const handleTimeSlotPress = (time) => {
     setSelectedTimeSlots(prev =>
@@ -192,7 +195,7 @@ export default function CourtBookingScreen({ navigation, route }) {
             <View style={styles.calendarContainer}>
               <Calendar
                 onDayPress={(day) => {
-                  setSelectedDate(day.dateString); // Updates selectedDate state
+                  setSelectedDate(day.dateString);
                 }}
                 markedDates={{
                   [selectedDate]: {
@@ -210,7 +213,7 @@ export default function CourtBookingScreen({ navigation, route }) {
               />
             </View>
 
-            {/* Dynamic Court Tabs */}
+            {/* Court Tabs */}
             <View style={styles.courtTabsContainer}>
               {courts.map((court) => (
                 <TouchableOpacity
@@ -237,6 +240,7 @@ export default function CourtBookingScreen({ navigation, route }) {
         }
       />
 
+      {/* Book Button */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.bookButton, selectedTimeSlots.length === 0 && styles.disabledBookButton]}
@@ -250,6 +254,7 @@ export default function CourtBookingScreen({ navigation, route }) {
   );
 }
 
+// Styles remain unchanged — use the same styles from your file
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

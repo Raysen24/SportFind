@@ -10,9 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // Firebase imports
-import { getAuth, signOut } from 'firebase/auth'; // Firebase Modular SDK
-import { auth } from '../firebaseConfig'; // Optional: if you export auth from firebaseConfig
-import { useNavigation } from '@react-navigation/native'; // React Navigation hook
+import { getAuth, signOut } from 'firebase/auth';
+import { auth } from '../firebaseConfig';
+import { useNavigation } from '@react-navigation/native';
 
 const SettingsItem = ({ label, iconName, onPress, isDestructive = false }) => (
   <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
@@ -35,14 +35,14 @@ export default function SettingsScreen({ navigation }) {
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    const authInstance = getAuth(); // Get Firebase Auth instance
+    const authInstance = getAuth();
     setLoggingOut(true);
     try {
       await signOut(authInstance);
       console.log('User signed out');
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Login' }] // Make sure this screen name matches your Login screen
+        routes: [{ name: 'Login' }]
       });
     } catch (error) {
       console.error("Logout failed:", error);
@@ -69,7 +69,12 @@ export default function SettingsScreen({ navigation }) {
 
         <SectionHeader title="Support & About" />
         <View style={styles.sectionContainer}>
-          <SettingsItem label="My Subscription" iconName="card-outline" onPress={() => console.log('My Subscription')} />
+          {/* ✅ Navigates to MyBookingsScreen */}
+          <SettingsItem
+            label="My Bookings"
+            iconName="card-outline"
+            onPress={() => navigation.navigate('MyBookings')}
+          />
           <SettingsItem label="Help & Support" iconName="help-circle-outline" onPress={() => console.log('Help & Support')} />
           <SettingsItem label="Terms and Policies" iconName="document-text-outline" onPress={() => console.log('Terms and Policies')} />
         </View>
